@@ -111,6 +111,7 @@ class Meteorite:
     size: float = 3
     explosion_frames: int = 0  # Frames left for explosion animation
     debris: List[Debris] = None
+    burning: bool = False  # Whether meteorite is burning after collision
     
     def __post_init__(self):
         if self.debris is None:
@@ -124,6 +125,9 @@ class Meteorite:
             # Update debris
             for particle in self.debris:
                 particle.update()
+        elif self.burning:
+            # Meteorite is burning - already handled, just waiting to disappear
+            pass
         else:
             # Moving toward sun
             dx = self.target_x - self.x
@@ -138,6 +142,7 @@ class Meteorite:
                 # Reached target - start explosion
                 self.create_explosion()
                 self.explosion_frames = 25  # 25 frames of explosion
+                self.burning = True
     
     def is_alive(self) -> bool:
         """Check if meteorite is still active."""
@@ -413,7 +418,7 @@ class SolarSystemSimulator:
     def check_meteorite_planet_collision(self) -> None:
         """Check if meteorites collide with planets."""
         for meteorite in self.meteorites[:]:
-            if meteorite.is_exploding():
+            if meteorite.is_exploding() or meteorite.burning:
                 continue
             
             for planet in self.planets[:]:
@@ -435,10 +440,28 @@ class SolarSystemSimulator:
                         particle.x = planet_x
                         particle.y = planet_y
                     
-                    meteorite.create_explosion()
-                    meteorite.explosion_frames = 20
-                    meteorite.x = planet_x
-                    meteorite.y = planet_y
+                    # Remove meteorite immediately after planet collision
+                    self.meteorites.remove(meteorite)
+                    break
+    
+    def check_meteorite_sun_collision(self) -> None:
+        """Check if meteorites reach the sun."""
+        sun_radius_with_margin = self.sun_radius + 5
+        
+        for meteorite in self.meteorites[:]:
+            if meteorite.is_exploding() or meteorite.burning:
+                continue
+            
+            dx = meteorite.x - self.center_x
+            dy = meteorite.y - self.center_y
+            distance = math.sqrt(dx**2 + dy**2)
+            
+            # Check if reached sun
+            if distance < sun_radius_with_margin:
+                # Meteorite hits sun - create burning effect
+                meteorite.create_explosion()
+                meteorite.explosion_frames = 20  # 20 frames of burning animation
+                meteorite.burning = True
     
     def update_simulation(self) -> None:
         """Update planet positions and meteorites."""
@@ -458,6 +481,7 @@ class SolarSystemSimulator:
             
             # Check collisions
             self.check_meteorite_planet_collision()
+            self.check_meteorite_sun_collision()
     
     def draw(self) -> None:
         """Draw the solar system."""
@@ -532,11 +556,11 @@ class SolarSystemSimulator:
         # Draw meteorites
         for meteorite in self.meteorites:
             if meteorite.is_exploding():
-                # Draw explosion with multiple expanding rings
+                # Draw burning/explosion effect at sun
                 frames_left = meteorite.explosion_frames
-                max_frames = 25
+                max_frames = 20
                 
-                # Draw debris particles
+                # Draw debris particles with bright colors
                 for particle in meteorite.debris:
                     if particle.is_alive():
                         self.canvas.create_oval(
@@ -545,26 +569,44 @@ class SolarSystemSimulator:
                             particle.x + particle.size,
                             particle.y + particle.size,
                             fill=particle.color,
-                            outline="yellow",
-                            width=1
+                            outline="white",
+                            width=2
                         )
                 
-                # Draw expanding explosion rings
+                # Draw intense flaring effect at sun
                 progress = 1 - (frames_left / max_frames)
-                for ring in range(3):
-                    ring_radius = (progress + ring * 0.3) * 80
+                
+                # Multiple expanding rings for intense effect
+                for ring in range(4):
+                    ring_radius = (progress + ring * 0.2) * 60
                     if ring_radius > 0:
-                        opacity = max(0, 1 - progress - ring * 0.2)
-                        ring_width = max(1, int(3 * opacity))
+                        opacity = max(0, 1 - progress - ring * 0.15)
+                        ring_width = max(1, int(4 * opacity))
                         if ring_width > 0:
+                            colors = ["yellow", "orange", "red", "white"]
+                            color = colors[min(ring, len(colors) - 1)]
                             self.canvas.create_oval(
-                                meteorite.x - ring_radius,
-                                meteorite.y - ring_radius,
-                                meteorite.x + ring_radius,
-                                meteorite.y + ring_radius,
-                                outline="red" if ring == 0 else "orange",
+                                self.center_x - ring_radius,
+                                self.center_y - ring_radius,
+                                self.center_x + ring_radius,
+                                self.center_y + ring_radius,
+                                outline=color,
                                 width=ring_width
                             )
+                
+                # Draw inner bright flash
+                flash_radius = progress * 50
+                if flash_radius > 0:
+                    flash_opacity = max(0, 1 - progress * 1.5)
+                    if flash_opacity > 0:
+                        self.canvas.create_oval(
+                            self.center_x - flash_radius,
+                            self.center_y - flash_radius,
+                            self.center_x + flash_radius,
+                            self.center_y + flash_radius,
+                            fill="white",
+                            outline="yellow"
+                        )
             else:
                 # Draw meteorite (brown/gray color)
                 self.canvas.create_oval(
