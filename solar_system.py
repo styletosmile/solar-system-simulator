@@ -180,6 +180,71 @@ class Meteorite:
             self.debris.append(particle)
 
 
+@dataclass
+class Star:
+    """Represents a fast-moving star through the solar system."""
+    x: float
+    y: float
+    vx: float
+    vy: float
+    speed: float = 8.0  # Faster than meteorites
+    size: float = 2
+    explosion_frames: int = 0  # Frames left for explosion animation
+    debris: List[Debris] = None
+    
+    def __post_init__(self):
+        if self.debris is None:
+            self.debris = []
+    
+    def update(self) -> None:
+        """Update star position."""
+        if self.explosion_frames > 0:
+            # In explosion phase
+            self.explosion_frames -= 1
+            # Update debris
+            for particle in self.debris:
+                particle.update()
+        else:
+            # Moving across the screen
+            self.x += self.vx
+            self.y += self.vy
+    
+    def is_alive(self) -> bool:
+        """Check if star is still active."""
+        # Star is alive if still exploding or still on screen
+        if self.explosion_frames > 0:
+            return True
+        # Check if off screen
+        if self.x < -100 or self.x > 1500 or self.y < -100 or self.y > 950:
+            return False
+        return True
+    
+    def is_exploding(self) -> bool:
+        """Check if star is currently exploding."""
+        return self.explosion_frames > 0
+    
+    def create_explosion(self) -> None:
+        """Create explosion particles."""
+        num_particles = 12
+        for i in range(num_particles):
+            angle = (i / num_particles) * 2 * math.pi
+            velocity_x = math.cos(angle) * random.uniform(2, 6)
+            velocity_y = math.sin(angle) * random.uniform(2, 6)
+            
+            # White and yellow colors for star explosion
+            colors = ["white", "yellow", "cyan"]
+            particle = Debris(
+                x=self.x,
+                y=self.y,
+                vx=velocity_x,
+                vy=velocity_y,
+                color=random.choice(colors),
+                size=random.uniform(1, 3),
+                lifetime=20
+            )
+            self.debris.append(particle)
+
+
 class SolarSystemSimulator:
     """Main simulation class for the solar system."""
     
@@ -212,6 +277,13 @@ class SolarSystemSimulator:
         
         # Meteorites list
         self.meteorites: List[Meteorite] = []
+        
+        # Stars list
+        self.stars: List[Star] = []
+        
+        # Star spawning
+        self.star_spawn_timer = 0
+        self.star_spawn_interval = random.randint(30, 150)  # 1-5 seconds at 30 FPS
         
         # Sun parameters
         self.sun_radius = 20
@@ -396,6 +468,54 @@ class SolarSystemSimulator:
             )
             self.meteorites.append(meteorite)
     
+    def spawn_stars(self) -> None:
+        """Spawn random stars flying across the solar system."""
+        self.star_spawn_timer += 1
+        
+        if self.star_spawn_timer >= self.star_spawn_interval:
+            # Time to spawn new stars
+            num_stars = random.randint(3, 7)
+            
+            for _ in range(num_stars):
+                # Random starting position (from edges)
+                edge = random.choice(['left', 'right', 'top', 'bottom'])
+                
+                if edge == 'left':
+                    x = -20
+                    y = random.uniform(0, 850)
+                    vx = random.uniform(6, 10)
+                    vy = random.uniform(-2, 2)
+                elif edge == 'right':
+                    x = 1420
+                    y = random.uniform(0, 850)
+                    vx = random.uniform(-10, -6)
+                    vy = random.uniform(-2, 2)
+                elif edge == 'top':
+                    x = random.uniform(0, 1400)
+                    y = -20
+                    vx = random.uniform(-2, 2)
+                    vy = random.uniform(6, 10)
+                else:  # bottom
+                    x = random.uniform(0, 1400)
+                    y = 870
+                    vx = random.uniform(-2, 2)
+                    vy = random.uniform(-10, -6)
+                
+                star = Star(
+                    x=x,
+                    y=y,
+                    vx=vx,
+                    vy=vy,
+                    speed=8.0,
+                    size=2,
+                    debris=[]
+                )
+                self.stars.append(star)
+            
+            # Reset timer for next spawn
+            self.star_spawn_timer = 0
+            self.star_spawn_interval = random.randint(30, 150)  # 1-5 seconds
+    
     def toggle_pause(self) -> None:
         """Toggle simulation pause/resume."""
         self.is_running = not self.is_running
@@ -414,6 +534,7 @@ class SolarSystemSimulator:
         """Reset all planets to starting positions."""
         self.planets = self._create_planets()
         self.meteorites = []
+        self.stars = []
     
     def check_meteorite_planet_collision(self) -> None:
         """Check if meteorites collide with planets."""
@@ -463,8 +584,57 @@ class SolarSystemSimulator:
                 meteorite.explosion_frames = 20  # 20 frames of burning animation
                 meteorite.burning = True
     
+    def check_star_collisions(self) -> None:
+        """Check if stars collide with planets, meteorites, or sun."""
+        for star in self.stars[:]:
+            if star.is_exploding():
+                continue
+            
+            # Check collision with planets
+            for planet in self.planets[:]:
+                if planet.destroyed:
+                    continue
+                
+                planet_x, planet_y = planet.get_position(self.center_x, self.center_y, self.scale)
+                
+                dx = star.x - planet_x
+                dy = star.y - planet_y
+                distance = math.sqrt(dx**2 + dy**2)
+                
+                # Check collision
+                if distance < planet.size + star.size:
+                    # Star hits planet
+                    star.create_explosion()
+                    star.explosion_frames = 15
+                    return
+            
+            # Check collision with meteorites
+            for meteorite in self.meteorites[:]:
+                if meteorite.is_exploding() or meteorite.burning:
+                    continue
+                
+                dx = star.x - meteorite.x
+                dy = star.y - meteorite.y
+                distance = math.sqrt(dx**2 + dy**2)
+                
+                if distance < star.size + meteorite.size:
+                    # Star hits meteorite
+                    star.create_explosion()
+                    star.explosion_frames = 15
+                    return
+            
+            # Check collision with sun
+            dx = star.x - self.center_x
+            dy = star.y - self.center_y
+            distance = math.sqrt(dx**2 + dy**2)
+            
+            if distance < self.sun_radius + star.size:
+                # Star hits sun
+                star.create_explosion()
+                star.explosion_frames = 15
+    
     def update_simulation(self) -> None:
-        """Update planet positions and meteorites."""
+        """Update planet positions, meteorites, and stars."""
         if self.is_running:
             # Update planets
             for planet in self.planets[:]:
@@ -479,9 +649,19 @@ class SolarSystemSimulator:
                 if not meteorite.is_alive():
                     self.meteorites.remove(meteorite)
             
+            # Update stars
+            for star in self.stars[:]:
+                star.update()
+                if not star.is_alive():
+                    self.stars.remove(star)
+            
+            # Spawn new stars
+            self.spawn_stars()
+            
             # Check collisions
             self.check_meteorite_planet_collision()
             self.check_meteorite_sun_collision()
+            self.check_star_collisions()
     
     def draw(self) -> None:
         """Draw the solar system."""
@@ -616,6 +796,33 @@ class SolarSystemSimulator:
                     meteorite.y + meteorite.size,
                     fill="brown",
                     outline="gray",
+                    width=1
+                )
+        
+        # Draw stars
+        for star in self.stars:
+            if star.is_exploding():
+                # Draw explosion
+                for particle in star.debris:
+                    if particle.is_alive():
+                        self.canvas.create_oval(
+                            particle.x - particle.size,
+                            particle.y - particle.size,
+                            particle.x + particle.size,
+                            particle.y + particle.size,
+                            fill=particle.color,
+                            outline="white",
+                            width=1
+                        )
+            else:
+                # Draw star as bright white point
+                self.canvas.create_oval(
+                    star.x - star.size,
+                    star.y - star.size,
+                    star.x + star.size,
+                    star.y + star.size,
+                    fill="white",
+                    outline="cyan",
                     width=1
                 )
     
