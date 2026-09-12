@@ -52,7 +52,7 @@ class SolarSystemSimulator:
         self.center_y = 425
         
         # Scale factor: pixels per million km (increased for more spacing)
-        self.base_scale = 0.015
+        self.base_scale = 0.05
         self.scale = self.base_scale
         self.zoom_multiplier = 1.0
         
@@ -185,7 +185,7 @@ class SolarSystemSimulator:
         self.zoom_scale = tk.Scale(
             control_frame,
             from_=0.2,
-            to=3.0,
+            to=20.0,
             resolution=0.1,
             orient=tk.HORIZONTAL,
             command=self.set_zoom,
