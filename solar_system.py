@@ -1,5 +1,6 @@
 import tkinter as tk
 import math
+import random
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -13,10 +14,23 @@ class Planet:
     color: str       # Color for drawing
     orbital_speed: float  # Degrees per frame
     angle: float = 0.0  # Current angle in orbital path
+    destroyed: bool = False  # Whether planet is destroyed
+    destruction_frames: int = 0  # Frames left for destruction animation
+    debris: List['Debris'] = None  # Debris particles from destruction
+    
+    def __post_init__(self):
+        if self.debris is None:
+            self.debris = []
     
     def update(self) -> None:
         """Update planet's position in its orbit."""
-        self.angle = (self.angle + self.orbital_speed) % 360
+        if not self.destroyed:
+            self.angle = (self.angle + self.orbital_speed) % 360
+        else:
+            # Update debris during destruction
+            self.destruction_frames -= 1
+            for particle in self.debris:
+                particle.update()
     
     def get_position(self, center_x: float, center_y: float, scale: float) -> Tuple[float, float]:
         """Calculate planet's x, y position on screen."""
@@ -28,6 +42,60 @@ class Planet:
         y = center_y + self.distance * scale * math.sin(rad)
         
         return x, y
+    
+    def destroy(self) -> None:
+        """Start planet destruction animation."""
+        self.destroyed = True
+        self.destruction_frames = 30  # 30 frames of destruction
+        self.create_debris()
+    
+    def create_debris(self) -> None:
+        """Create debris particles for destruction animation."""
+        num_particles = 12
+        for i in range(num_particles):
+            angle = (i / num_particles) * 2 * math.pi
+            velocity_x = math.cos(angle) * random.uniform(3, 8)
+            velocity_y = math.sin(angle) * random.uniform(3, 8)
+            
+            # Use current position if we have it
+            particle = Debris(
+                x=0,
+                y=0,
+                vx=velocity_x,
+                vy=velocity_y,
+                color=self.color,
+                size=random.uniform(2, 6),
+                lifetime=30
+            )
+            self.debris.append(particle)
+
+
+@dataclass
+class Debris:
+    """Represents a piece of debris from destroyed planet or meteorite."""
+    x: float
+    y: float
+    vx: float
+    vy: float
+    color: str
+    size: float
+    lifetime: int  # Frames until disappears
+    
+    def update(self) -> None:
+        """Update debris position and lifetime."""
+        self.x += self.vx
+        self.y += self.vy
+        self.lifetime -= 1
+        # Apply gravity-like effect toward center
+        self.vy += 0.3
+    
+    def is_alive(self) -> bool:
+        """Check if debris is still visible."""
+        return self.lifetime > 0
+    
+    def get_alpha(self) -> float:
+        """Get opacity based on remaining lifetime (0-1)."""
+        return self.lifetime / 30.0
 
 
 @dataclass
@@ -42,12 +110,20 @@ class Meteorite:
     speed: float = 5.0
     size: float = 3
     explosion_frames: int = 0  # Frames left for explosion animation
+    debris: List[Debris] = None
+    
+    def __post_init__(self):
+        if self.debris is None:
+            self.debris = []
     
     def update(self) -> None:
         """Update meteorite position."""
         if self.explosion_frames > 0:
             # In explosion phase
             self.explosion_frames -= 1
+            # Update debris
+            for particle in self.debris:
+                particle.update()
         else:
             # Moving toward sun
             dx = self.target_x - self.x
@@ -60,7 +136,8 @@ class Meteorite:
                 self.y += (dy / distance) * self.speed
             else:
                 # Reached target - start explosion
-                self.explosion_frames = 15  # 15 frames of explosion
+                self.create_explosion()
+                self.explosion_frames = 25  # 25 frames of explosion
     
     def is_alive(self) -> bool:
         """Check if meteorite is still active."""
@@ -75,6 +152,27 @@ class Meteorite:
     def is_exploding(self) -> bool:
         """Check if meteorite is currently exploding."""
         return self.explosion_frames > 0
+    
+    def create_explosion(self) -> None:
+        """Create explosion particles."""
+        num_particles = 20
+        for i in range(num_particles):
+            angle = (i / num_particles) * 2 * math.pi
+            velocity_x = math.cos(angle) * random.uniform(4, 10)
+            velocity_y = math.sin(angle) * random.uniform(4, 10)
+            
+            # Mix of colors for nice explosion effect
+            colors = ["red", "orange", "yellow", "white"]
+            particle = Debris(
+                x=self.x,
+                y=self.y,
+                vx=velocity_x,
+                vy=velocity_y,
+                color=random.choice(colors),
+                size=random.uniform(2, 5),
+                lifetime=25
+            )
+            self.debris.append(particle)
 
 
 class SolarSystemSimulator:
@@ -132,56 +230,64 @@ class SolarSystemSimulator:
                 distance=57.9,
                 size=3,
                 color="gray",
-                orbital_speed=6.15  # Increased by 50% (4.1 * 1.5)
+                orbital_speed=6.15,
+                debris=[]
             ),
             Planet(
                 name="Venus",
                 distance=108.2,
                 size=7,
                 color="yellow",
-                orbital_speed=2.4  # Increased by 50% (1.6 * 1.5)
+                orbital_speed=2.4,
+                debris=[]
             ),
             Planet(
                 name="Earth",
                 distance=149.6,
                 size=7,
                 color="blue",
-                orbital_speed=1.5  # Increased by 50% (1.0 * 1.5)
+                orbital_speed=1.5,
+                debris=[]
             ),
             Planet(
                 name="Mars",
                 distance=227.9,
                 size=4,
                 color="red",
-                orbital_speed=0.795  # Increased by 50% (0.53 * 1.5)
+                orbital_speed=0.795,
+                debris=[]
             ),
             Planet(
                 name="Jupiter",
                 distance=778.5,
                 size=16,
                 color="orange",
-                orbital_speed=0.126  # Increased by 50% (0.084 * 1.5)
+                orbital_speed=0.126,
+                debris=[]
             ),
             Planet(
                 name="Saturn",
                 distance=1434.0,
                 size=14,
                 color="goldenrod",
-                orbital_speed=0.051  # Increased by 50% (0.034 * 1.5)
+                orbital_speed=0.051,
+                debris=[]
             ),
             Planet(
                 name="Uranus",
                 distance=2871.0,
                 size=8,
                 color="cyan",
-                orbital_speed=0.018  # Increased by 50% (0.012 * 1.5)
+                orbital_speed=0.018,
+                debris=[]
             ),
             Planet(
                 name="Neptune",
                 distance=4495.0,
                 size=8,
                 color="blue",
-                orbital_speed=0.00915  # Increased by 50% (0.0061 * 1.5)
+                orbital_speed=0.00915,
+                debris=[]
             ),
         ]
         return planets
@@ -280,7 +386,8 @@ class SolarSystemSimulator:
                 target_x=float(self.center_x),
                 target_y=float(self.center_y),
                 speed=5.0,
-                size=3
+                size=3,
+                debris=[]
             )
             self.meteorites.append(meteorite)
     
@@ -300,26 +407,57 @@ class SolarSystemSimulator:
     
     def reset(self) -> None:
         """Reset all planets to starting positions."""
-        for planet in self.planets:
-            planet.angle = 0.0
+        self.planets = self._create_planets()
         self.meteorites = []
+    
+    def check_meteorite_planet_collision(self) -> None:
+        """Check if meteorites collide with planets."""
+        for meteorite in self.meteorites[:]:
+            if meteorite.is_exploding():
+                continue
+            
+            for planet in self.planets[:]:
+                if planet.destroyed:
+                    continue
+                
+                planet_x, planet_y = planet.get_position(self.center_x, self.center_y, self.scale)
+                
+                dx = meteorite.x - planet_x
+                dy = meteorite.y - planet_y
+                distance = math.sqrt(dx**2 + dy**2)
+                
+                # Check collision
+                if distance < planet.size + meteorite.size:
+                    # Collision! Destroy planet and meteorite
+                    planet.destroy()
+                    # Transfer meteorite position to planet debris
+                    for particle in planet.debris:
+                        particle.x = planet_x
+                        particle.y = planet_y
+                    
+                    meteorite.create_explosion()
+                    meteorite.explosion_frames = 20
+                    meteorite.x = planet_x
+                    meteorite.y = planet_y
     
     def update_simulation(self) -> None:
         """Update planet positions and meteorites."""
         if self.is_running:
             # Update planets
-            for planet in self.planets:
-                # Apply speed multiplier
-                original_speed = planet.orbital_speed
-                planet.orbital_speed = original_speed * self.speed_multiplier
+            for planet in self.planets[:]:
                 planet.update()
-                planet.orbital_speed = original_speed
+                if planet.destroyed and planet.destruction_frames <= 0:
+                    # Remove completely destroyed planet
+                    self.planets.remove(planet)
             
             # Update meteorites
             for meteorite in self.meteorites[:]:
                 meteorite.update()
                 if not meteorite.is_alive():
                     self.meteorites.remove(meteorite)
+            
+            # Check collisions
+            self.check_meteorite_planet_collision()
     
     def draw(self) -> None:
         """Draw the solar system."""
@@ -330,14 +468,15 @@ class SolarSystemSimulator:
         
         # Draw orbital paths
         for planet in self.planets:
-            self.canvas.create_oval(
-                self.center_x - planet.distance * self.scale,
-                self.center_y - planet.distance * self.scale,
-                self.center_x + planet.distance * self.scale,
-                self.center_y + planet.distance * self.scale,
-                outline="gray30",
-                width=1
-            )
+            if not planet.destroyed:
+                self.canvas.create_oval(
+                    self.center_x - planet.distance * self.scale,
+                    self.center_y - planet.distance * self.scale,
+                    self.center_x + planet.distance * self.scale,
+                    self.center_y + planet.distance * self.scale,
+                    outline="gray30",
+                    width=1
+                )
         
         # Draw Sun
         self.canvas.create_oval(
@@ -352,42 +491,80 @@ class SolarSystemSimulator:
         
         # Draw planets
         for planet in self.planets:
-            x, y = planet.get_position(self.center_x, self.center_y, self.scale)
-            
-            self.canvas.create_oval(
-                x - planet.size,
-                y - planet.size,
-                x + planet.size,
-                y + planet.size,
-                fill=planet.color,
-                outline="white",
-                width=1
-            )
-            
-            # Draw planet name (only for larger planets to avoid clutter)
-            if planet.size >= 7:
-                self.canvas.create_text(
-                    x,
-                    y + planet.size + 15,
-                    text=planet.name,
-                    fill="white",
-                    font=("Arial", 8)
+            if planet.destroyed:
+                # Draw destruction debris
+                for particle in planet.debris:
+                    if particle.is_alive():
+                        alpha = int(255 * particle.get_alpha())
+                        # Create bright glowing debris
+                        self.canvas.create_oval(
+                            particle.x - particle.size,
+                            particle.y - particle.size,
+                            particle.x + particle.size,
+                            particle.y + particle.size,
+                            fill=particle.color,
+                            outline="white",
+                            width=2
+                        )
+            else:
+                x, y = planet.get_position(self.center_x, self.center_y, self.scale)
+                
+                self.canvas.create_oval(
+                    x - planet.size,
+                    y - planet.size,
+                    x + planet.size,
+                    y + planet.size,
+                    fill=planet.color,
+                    outline="white",
+                    width=1
                 )
+                
+                # Draw planet name (only for larger planets to avoid clutter)
+                if planet.size >= 7:
+                    self.canvas.create_text(
+                        x,
+                        y + planet.size + 15,
+                        text=planet.name,
+                        fill="white",
+                        font=("Arial", 8)
+                    )
         
         # Draw meteorites
         for meteorite in self.meteorites:
             if meteorite.is_exploding():
-                # Draw explosion (orange expanding circles)
-                explosion_radius = (15 - meteorite.explosion_frames) * 2
-                self.canvas.create_oval(
-                    meteorite.x - explosion_radius,
-                    meteorite.y - explosion_radius,
-                    meteorite.x + explosion_radius,
-                    meteorite.y + explosion_radius,
-                    fill="orange",
-                    outline="red",
-                    width=2
-                )
+                # Draw explosion with multiple expanding rings
+                frames_left = meteorite.explosion_frames
+                max_frames = 25
+                
+                # Draw debris particles
+                for particle in meteorite.debris:
+                    if particle.is_alive():
+                        self.canvas.create_oval(
+                            particle.x - particle.size,
+                            particle.y - particle.size,
+                            particle.x + particle.size,
+                            particle.y + particle.size,
+                            fill=particle.color,
+                            outline="yellow",
+                            width=1
+                        )
+                
+                # Draw expanding explosion rings
+                progress = 1 - (frames_left / max_frames)
+                for ring in range(3):
+                    ring_radius = (progress + ring * 0.3) * 80
+                    if ring_radius > 0:
+                        opacity = max(0, 1 - progress - ring * 0.2)
+                        ring_width = max(1, int(3 * opacity))
+                        if ring_width > 0:
+                            self.canvas.create_oval(
+                                meteorite.x - ring_radius,
+                                meteorite.y - ring_radius,
+                                meteorite.x + ring_radius,
+                                meteorite.y + ring_radius,
+                                outline="red" if ring == 0 else "orange",
+                                width=ring_width
+                            )
             else:
                 # Draw meteorite (brown/gray color)
                 self.canvas.create_oval(
