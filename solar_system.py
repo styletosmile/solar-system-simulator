@@ -126,7 +126,7 @@ class Meteorite:
             for particle in self.debris:
                 particle.update()
         elif self.burning:
-            # Meteorite is burning - already handled, just waiting to disappear
+            # Meteorite is burning - just decrementing already handled
             pass
         else:
             # Moving toward sun
@@ -141,7 +141,7 @@ class Meteorite:
             else:
                 # Reached target - start explosion
                 self.create_explosion()
-                self.explosion_frames = 25  # 25 frames of explosion
+                self.explosion_frames = 20  # 20 frames of explosion
                 self.burning = True
     
     def is_alive(self) -> bool:
@@ -191,10 +191,13 @@ class Star:
     size: float = 2
     explosion_frames: int = 0  # Frames left for explosion animation
     debris: List[Debris] = None
+    trail: List[Tuple[float, float]] = None  # Trail positions
     
     def __post_init__(self):
         if self.debris is None:
             self.debris = []
+        if self.trail is None:
+            self.trail = []
     
     def update(self) -> None:
         """Update star position."""
@@ -205,6 +208,12 @@ class Star:
             for particle in self.debris:
                 particle.update()
         else:
+            # Add current position to trail
+            self.trail.append((self.x, self.y))
+            # Keep trail to last 10 positions
+            if len(self.trail) > 10:
+                self.trail.pop(0)
+            
             # Moving across the screen
             self.x += self.vx
             self.y += self.vy
@@ -508,7 +517,8 @@ class SolarSystemSimulator:
                     vy=vy,
                     speed=8.0,
                     size=2,
-                    debris=[]
+                    debris=[],
+                    trail=[]
                 )
                 self.stars.append(star)
             
@@ -629,7 +639,7 @@ class SolarSystemSimulator:
             distance = math.sqrt(dx**2 + dy**2)
             
             if distance < self.sun_radius + star.size:
-                # Star hits sun
+                # Star hits sun - create explosion once and remove
                 star.create_explosion()
                 star.explosion_frames = 15
     
@@ -815,6 +825,21 @@ class SolarSystemSimulator:
                             width=1
                         )
             else:
+                # Draw star trail
+                if len(star.trail) > 1:
+                    for i, (trail_x, trail_y) in enumerate(star.trail):
+                        # Fade trail from dark to bright
+                        opacity = int(255 * (i / len(star.trail)))
+                        trail_size = max(0.5, star.size * (i / len(star.trail)))
+                        self.canvas.create_oval(
+                            trail_x - trail_size,
+                            trail_y - trail_size,
+                            trail_x + trail_size,
+                            trail_y + trail_size,
+                            fill="cyan",
+                            outline="blue"
+                        )
+                
                 # Draw star as bright white point
                 self.canvas.create_oval(
                     star.x - star.size,
