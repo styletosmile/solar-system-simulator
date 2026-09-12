@@ -36,23 +36,23 @@ class SolarSystemSimulator:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Solar System Simulator")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x900")
         
         # Canvas for drawing
         self.canvas = tk.Canvas(
             root,
-            width=1200,
-            height=800,
+            width=1400,
+            height=850,
             bg="black"
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
         
         # Center of the solar system on canvas
-        self.center_x = 600
-        self.center_y = 400
+        self.center_x = 700
+        self.center_y = 425
         
-        # Scale factor: pixels per million km
-        self.scale = 0.008
+        # Scale factor: pixels per million km (increased for more spacing)
+        self.scale = 0.015
         
         # Initialize planets
         self.planets = self._create_planets()
@@ -79,56 +79,56 @@ class SolarSystemSimulator:
                 distance=57.9,
                 size=3,
                 color="gray",
-                orbital_speed=4.1
+                orbital_speed=6.15  # Increased by 50% (4.1 * 1.5)
             ),
             Planet(
                 name="Venus",
                 distance=108.2,
                 size=7,
                 color="yellow",
-                orbital_speed=1.6
+                orbital_speed=2.4  # Increased by 50% (1.6 * 1.5)
             ),
             Planet(
                 name="Earth",
                 distance=149.6,
                 size=7,
                 color="blue",
-                orbital_speed=1.0
+                orbital_speed=1.5  # Increased by 50% (1.0 * 1.5)
             ),
             Planet(
                 name="Mars",
                 distance=227.9,
                 size=4,
                 color="red",
-                orbital_speed=0.53
+                orbital_speed=0.795  # Increased by 50% (0.53 * 1.5)
             ),
             Planet(
                 name="Jupiter",
                 distance=778.5,
                 size=16,
                 color="orange",
-                orbital_speed=0.084
+                orbital_speed=0.126  # Increased by 50% (0.084 * 1.5)
             ),
             Planet(
                 name="Saturn",
                 distance=1434.0,
                 size=14,
                 color="goldenrod",
-                orbital_speed=0.034
+                orbital_speed=0.051  # Increased by 50% (0.034 * 1.5)
             ),
             Planet(
                 name="Uranus",
                 distance=2871.0,
                 size=8,
                 color="cyan",
-                orbital_speed=0.012
+                orbital_speed=0.018  # Increased by 50% (0.012 * 1.5)
             ),
             Planet(
                 name="Neptune",
                 distance=4495.0,
                 size=8,
                 color="blue",
-                orbital_speed=0.0061
+                orbital_speed=0.00915  # Increased by 50% (0.0061 * 1.5)
             ),
         ]
         return planets
@@ -222,7 +222,7 @@ class SolarSystemSimulator:
         self.canvas.delete("all")
         
         # Draw background
-        self.canvas.create_rectangle(0, 0, 1200, 800, fill="black", outline="black")
+        self.canvas.create_rectangle(0, 0, 1400, 850, fill="black", outline="black")
         
         # Draw orbital paths
         for planet in self.planets:
