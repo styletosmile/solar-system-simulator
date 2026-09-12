@@ -30,6 +30,53 @@ class Planet:
         return x, y
 
 
+@dataclass
+class Meteorite:
+    """Represents a meteorite flying toward the sun."""
+    x: float
+    y: float
+    start_x: float
+    start_y: float
+    target_x: float
+    target_y: float
+    speed: float = 5.0
+    size: float = 3
+    explosion_frames: int = 0  # Frames left for explosion animation
+    
+    def update(self) -> None:
+        """Update meteorite position."""
+        if self.explosion_frames > 0:
+            # In explosion phase
+            self.explosion_frames -= 1
+        else:
+            # Moving toward sun
+            dx = self.target_x - self.x
+            dy = self.target_y - self.y
+            distance = math.sqrt(dx**2 + dy**2)
+            
+            if distance > self.speed:
+                # Move toward target
+                self.x += (dx / distance) * self.speed
+                self.y += (dy / distance) * self.speed
+            else:
+                # Reached target - start explosion
+                self.explosion_frames = 15  # 15 frames of explosion
+    
+    def is_alive(self) -> bool:
+        """Check if meteorite is still active."""
+        return self.explosion_frames > 0 or self._distance_to_target() > self.speed
+    
+    def _distance_to_target(self) -> float:
+        """Calculate distance to target."""
+        dx = self.target_x - self.x
+        dy = self.target_y - self.y
+        return math.sqrt(dx**2 + dy**2)
+    
+    def is_exploding(self) -> bool:
+        """Check if meteorite is currently exploding."""
+        return self.explosion_frames > 0
+
+
 class SolarSystemSimulator:
     """Main simulation class for the solar system."""
     
@@ -46,6 +93,7 @@ class SolarSystemSimulator:
             bg="black"
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
         
         # Center of the solar system on canvas
         self.center_x = 700
@@ -58,6 +106,9 @@ class SolarSystemSimulator:
         
         # Initialize planets
         self.planets = self._create_planets()
+        
+        # Meteorites list
+        self.meteorites: List[Meteorite] = []
         
         # Sun parameters
         self.sun_radius = 20
@@ -199,7 +250,7 @@ class SolarSystemSimulator:
         # Info label
         self.info_label = tk.Label(
             control_frame,
-            text="Solar System Simulator - 8 Planets",
+            text="Solar System Simulator - Click to add meteorites",
             bg="gray20",
             fg="white"
         )
@@ -216,6 +267,22 @@ class SolarSystemSimulator:
             pady=5
         )
         reset_button.pack(side=tk.RIGHT, padx=10, pady=10)
+    
+    def on_canvas_click(self, event) -> None:
+        """Handle canvas click to create meteorite."""
+        # Only create meteorite if click is not on control panel
+        if event.y < 850:
+            meteorite = Meteorite(
+                x=float(event.x),
+                y=float(event.y),
+                start_x=float(event.x),
+                start_y=float(event.y),
+                target_x=float(self.center_x),
+                target_y=float(self.center_y),
+                speed=5.0,
+                size=3
+            )
+            self.meteorites.append(meteorite)
     
     def toggle_pause(self) -> None:
         """Toggle simulation pause/resume."""
@@ -235,16 +302,24 @@ class SolarSystemSimulator:
         """Reset all planets to starting positions."""
         for planet in self.planets:
             planet.angle = 0.0
+        self.meteorites = []
     
     def update_simulation(self) -> None:
-        """Update planet positions."""
+        """Update planet positions and meteorites."""
         if self.is_running:
+            # Update planets
             for planet in self.planets:
                 # Apply speed multiplier
                 original_speed = planet.orbital_speed
                 planet.orbital_speed = original_speed * self.speed_multiplier
                 planet.update()
                 planet.orbital_speed = original_speed
+            
+            # Update meteorites
+            for meteorite in self.meteorites[:]:
+                meteorite.update()
+                if not meteorite.is_alive():
+                    self.meteorites.remove(meteorite)
     
     def draw(self) -> None:
         """Draw the solar system."""
@@ -297,6 +372,32 @@ class SolarSystemSimulator:
                     text=planet.name,
                     fill="white",
                     font=("Arial", 8)
+                )
+        
+        # Draw meteorites
+        for meteorite in self.meteorites:
+            if meteorite.is_exploding():
+                # Draw explosion (orange expanding circles)
+                explosion_radius = (15 - meteorite.explosion_frames) * 2
+                self.canvas.create_oval(
+                    meteorite.x - explosion_radius,
+                    meteorite.y - explosion_radius,
+                    meteorite.x + explosion_radius,
+                    meteorite.y + explosion_radius,
+                    fill="orange",
+                    outline="red",
+                    width=2
+                )
+            else:
+                # Draw meteorite (brown/gray color)
+                self.canvas.create_oval(
+                    meteorite.x - meteorite.size,
+                    meteorite.y - meteorite.size,
+                    meteorite.x + meteorite.size,
+                    meteorite.y + meteorite.size,
+                    fill="brown",
+                    outline="gray",
+                    width=1
                 )
     
     def animate(self) -> None:
