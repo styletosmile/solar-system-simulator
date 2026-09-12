@@ -52,7 +52,9 @@ class SolarSystemSimulator:
         self.center_y = 425
         
         # Scale factor: pixels per million km (increased for more spacing)
-        self.scale = 0.015
+        self.base_scale = 0.015
+        self.scale = self.base_scale
+        self.zoom_multiplier = 1.0
         
         # Initialize planets
         self.planets = self._create_planets()
@@ -172,6 +174,28 @@ class SolarSystemSimulator:
         self.speed_scale.set(1.0)
         self.speed_scale.pack(side=tk.LEFT, padx=5)
         
+        # Zoom control
+        tk.Label(
+            control_frame,
+            text="Zoom:",
+            bg="gray20",
+            fg="white"
+        ).pack(side=tk.LEFT, padx=5)
+        
+        self.zoom_scale = tk.Scale(
+            control_frame,
+            from_=0.2,
+            to=3.0,
+            resolution=0.1,
+            orient=tk.HORIZONTAL,
+            command=self.set_zoom,
+            bg="gray40",
+            fg="white",
+            length=200
+        )
+        self.zoom_scale.set(1.0)
+        self.zoom_scale.pack(side=tk.LEFT, padx=5)
+        
         # Info label
         self.info_label = tk.Label(
             control_frame,
@@ -201,6 +225,11 @@ class SolarSystemSimulator:
     def set_speed(self, value: str) -> None:
         """Set simulation speed multiplier."""
         self.speed_multiplier = float(value)
+    
+    def set_zoom(self, value: str) -> None:
+        """Set zoom multiplier."""
+        self.zoom_multiplier = float(value)
+        self.scale = self.base_scale * self.zoom_multiplier
     
     def reset(self) -> None:
         """Reset all planets to starting positions."""
